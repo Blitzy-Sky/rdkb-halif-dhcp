@@ -50,7 +50,7 @@ The diagram below describes a high-level software architecture of the DHCPv4C HA
 flowchart TD;
     RDKBStack[RDK-B Stack] <-->
     OwningServices["CcspPandMSsp / CcspDHCPMgr"] <-->
-    DHCPv4CHAL["DHCPv4C HAL(libapi_dhcpv4c.so)"] <-->
+    DHCPv4CHAL["DHCPv4C HAL (libapi_dhcpv4c.so)"] <-->
     VendorSoftware[Vendor Software]
 ```
 
