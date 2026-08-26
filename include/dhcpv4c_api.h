@@ -105,7 +105,7 @@
 #endif
 
 #ifndef STATUS_FAILURE
-#define STATUS_FAILURE     -1 /*!< Failure: the requested value was not retrieved, and the caller's output location is left in an unspecified state. The only failure code this interface defines; it does not distinguish a rejected argument from a retrieval error. */
+#define STATUS_FAILURE     -1 /*!< Failure: the requested value was not retrieved, and the caller's output location is left in an unspecified state. The only failure code this interface defines; it does not distinguish one failure condition from another, and this interface does not enumerate those conditions. */
 #endif
 
 /**
@@ -120,8 +120,10 @@
 /**
  * @brief A list of IPv4 addresses reported by this interface.
  *
- * The caller allocates the structure and the accessor fills it in; the accessor
- * does not retain the pointer, so the caller may allocate it on its own stack.
+ * The caller allocates the structure and the accessor fills it in; retention
+ * beyond the call is not specified by this interface, so a caller keeps the
+ * structure allocated and unmoved after it returns rather than assuming a
+ * lifetime that ends with the call.
  * `number` bounds the meaningful part of `addrs`: a caller reads `addrs[0]`
  * through `addrs[number - 1]` and must not read further, even though the array
  * is always `DHCPV4_MAX_IPV4_ADDRS` entries wide.
@@ -146,25 +148,43 @@ typedef struct {
  * output location and writes the requested value through it. The caller owns
  * that storage in every case, whether it is a scalar, a `CHAR` buffer or a
  * `dhcpv4c_ip_list_t`; no accessor allocates memory on the caller's behalf and
- * none retains the pointer once it has returned, so a caller may pass the
- * address of a local variable.
+ * none hands the caller anything to release. **Whether an accessor retains the
+ * pointer beyond the call is not specified by this interface**, and no
+ * declaration here withdraws a retained pointer, so a caller keeps the location
+ * allocated and unmoved after the call returns rather than assuming a lifetime
+ * that ends with it, and settles the point with its vendor implementation
+ * before it reuses or releases the storage. That is the single position this
+ * repository takes on retention: the Memory Model topic of this repository's
+ * HAL specification records the same absence, and neither it nor these
+ * declarations turns non-retention into a guarantee a caller may rely on.
  *
  * **Return convention.** Each accessor returns `STATUS_SUCCESS` or
  * `STATUS_FAILURE` and nothing else. This interface deliberately defines no
- * granular error enumeration, so a single failure code covers a rejected
- * argument, a value the DHCPv4 client has not yet learned, and an internal
- * retrieval error alike; a caller cannot tell them apart from the return value
- * and must distinguish them by inspecting its own argument and by retrying.
- * The Internal Error Handling topic of this repository's HAL specification
- * requires every failure, internal errors such as an out-of-memory condition
- * included, to be reported synchronously through this return value.
+ * granular error enumeration, and it does not enumerate the conditions that
+ * produce a failure either: the single code reports all of them, a caller
+ * cannot tell them apart from the return value, and no error string,
+ * last-error call or diagnostic code is declared anywhere here to make up the
+ * difference. What a caller can do is inspect the argument it passed and read
+ * the value again. The Internal Error Handling topic of this repository's HAL
+ * specification requires every failure, internal errors such as an
+ * out-of-memory condition included, to be reported synchronously through this
+ * return value.
  *
- * **Blocking.** The Blocking calls topic of that specification requires these
- * accessors to operate synchronously and not to block or suspend the caller's
- * main thread, while its Description topic states that the interface is
- * expected to block while the underlying hardware is not yet ready. Both hold,
- * so a caller on a latency-sensitive path must treat any of these calls as
- * potentially slow around start-up and prompt thereafter.
+ * **Blocking.** **This interface does not establish whether an accessor may
+ * block.** No declaration here states the duration of a call, a condition
+ * under which one may wait, or what an accessor does when the network hardware
+ * or the DHCPv4 client is not yet ready, and nothing else in this repository
+ * settles the point, so there is no blocking behaviour for a caller to rely on
+ * or for a test to assert. No bound is stated either: no accessor takes a
+ * timeout argument, no numeric timeout, completion-time target or upper bound
+ * is stated anywhere here, and there is no cancellation call, no abort and no
+ * asynchronous variant, so a call already issued cannot be withdrawn. What a
+ * call does deliver is its result, synchronously, through the return value at
+ * the call site - which says where the result appears, not when. The
+ * consequences are the caller's: place the call where a delay is survivable,
+ * impose and enforce your own bound if the calling context needs one, and do
+ * not let a test assert a completion time this interface does not state. The
+ * Blocking calls topic of the HAL specification states this and nothing else.
  *
  * **Thread safety.** The Threading Model topic states that this interface is
  * not required to be thread safe and that the calling module must ensure its
@@ -201,13 +221,18 @@ typedef struct {
  *       it is unmodified.
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The lease time was retrieved and written to `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, the E-Router client has not
- *                          been offered a lease yet, or the vendor
- *                          implementation could not read it. A caller re-checks
- *                          the pointer it passed, and otherwise re-reads later
- *                          rather than substituting zero for an unknown lease.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The lease time was not retrieved, and this interface
+ *                          does not enumerate the conditions that produce this
+ *                          code. A caller re-checks the pointer it passed, and
+ *                          otherwise re-reads later rather than substituting
+ *                          zero for an unknown lease.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @see dhcpv4c_get_ert_remain_lease_time
@@ -231,13 +256,18 @@ INT dhcpv4c_get_ert_lease_time(UINT *pValue);
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The remaining lease time was retrieved and written to
  *                          `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, the E-Router client holds no
- *                          lease, or the vendor implementation could not read
- *                          it. A caller re-checks the pointer it passed, and
- *                          otherwise re-reads later; a failure does not mean the
- *                          lease has expired.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The remaining lease time was not retrieved, and this
+ *                          interface does not enumerate the conditions that
+ *                          produce this code. A caller re-checks the pointer it
+ *                          passed, and otherwise re-reads later; a failure does
+ *                          not mean the lease has expired.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @see dhcpv4c_get_ert_lease_time
@@ -261,12 +291,17 @@ INT dhcpv4c_get_ert_remain_lease_time(UINT *pValue);
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The remaining renewal time was retrieved and written
  *                          to `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, the E-Router client holds no
- *                          lease to renew, or the vendor implementation could
- *                          not read it. A caller re-checks the pointer it
- *                          passed, and otherwise re-reads later.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The remaining renewal time was not retrieved, and
+ *                          this interface does not enumerate the conditions
+ *                          that produce this code. A caller re-checks the
+ *                          pointer it passed, and otherwise re-reads later.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @see dhcpv4c_get_ert_remain_rebind_time
@@ -291,12 +326,17 @@ INT dhcpv4c_get_ert_remain_renew_time(UINT *pValue);
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The remaining rebind time was retrieved and written
  *                          to `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, the E-Router client holds no
- *                          lease to rebind, or the vendor implementation could
- *                          not read it. A caller re-checks the pointer it
- *                          passed, and otherwise re-reads later.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The remaining rebind time was not retrieved, and
+ *                          this interface does not enumerate the conditions
+ *                          that produce this code. A caller re-checks the
+ *                          pointer it passed, and otherwise re-reads later.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @see dhcpv4c_get_ert_remain_renew_time
@@ -323,14 +363,19 @@ INT dhcpv4c_get_ert_remain_rebind_time(UINT *pValue);
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The attempt count was retrieved and written to
  *                          `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, or the vendor implementation
- *                          does not maintain the E-Router client's count or
- *                          could not read it. A caller re-checks the pointer it
- *                          passed; a persistent failure here means the
- *                          diagnostic is unavailable on this platform, not that
- *                          no attempt was made.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The attempt count was not retrieved, and this
+ *                          interface does not enumerate the conditions that
+ *                          produce this code. A caller re-checks the pointer it
+ *                          passed; a persistent failure leaves the count
+ *                          unavailable, and a caller must not read it as a
+ *                          count of zero.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @see dhcpv4c_get_ert_fsm_state
@@ -350,25 +395,32 @@ INT dhcpv4c_get_ert_config_attempts(INT *pValue);
  *                     as a zero-terminated string, as the Memory Model topic of
  *                     this repository's HAL specification requires of every
  *                     string it produces. The accessor writes no more than the
- *                     buffer holds and does not retain the pointer once it has
- *                     returned, so the buffer may be a local array; the caller
- *                     frees or discards it on its own terms.
+ *                     buffer holds. Retention beyond the call is not
+ *                     specified by this interface, so a caller keeps the
+ *                     buffer allocated and unmoved after it returns.
  * @pre `pName` addresses at least 64 writable bytes; this interface has no
  *      initialization call to make first. A shorter buffer, or one whose size
  *      the accessor cannot know, is the caller's error to avoid: nothing in this
  *      interface can detect it.
- * @post On success `pName` holds a zero-terminated interface name; on failure its
- *       content is not specified by this interface, so a caller must not treat a
- *       failed call's buffer as a valid string.
+ * @post On success `pName` holds the interface name, zero-terminated as that
+ *       obligation requires; on failure its content is not specified by this
+ *       interface, so a caller must not treat a failed call's buffer as a valid
+ *       string.
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The interface name was written to `pName`.
- * @retval STATUS_FAILURE - `pName` was rejected, or the vendor implementation
- *                          could not determine the E-Router interface's name. A
- *                          caller re-checks the pointer and the buffer size it
- *                          passed, and otherwise treats the name as unavailable
- *                          rather than reading the buffer.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The interface name was not retrieved, and this
+ *                          interface does not enumerate the conditions that
+ *                          produce this code. A caller re-checks the pointer
+ *                          and the buffer size it passed, and otherwise treats
+ *                          the name as unavailable rather than reading the
+ *                          buffer.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @warning The buffer size is a contract this interface cannot enforce, because
@@ -405,13 +457,18 @@ INT dhcpv4c_get_ert_ifname(CHAR *pName);
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The client state was retrieved and written to
  *                          `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, or the vendor implementation
- *                          could not read the E-Router client's state. A caller
- *                          re-checks the pointer it passed, and otherwise
- *                          re-reads later; it must not read a failure as any
- *                          particular state.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The client state was not retrieved, and this
+ *                          interface does not enumerate the conditions that
+ *                          produce this code. A caller re-checks the pointer it
+ *                          passed, and otherwise re-reads later; it must not
+ *                          read a failure as any particular state.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @note This interface specifies the values above but not the transitions
@@ -438,14 +495,18 @@ INT dhcpv4c_get_ert_fsm_state(INT *pValue);
  *       unmodified.
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The address was retrieved and written to `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, the E-Router client holds no
- *                          lease and therefore no address, or the vendor
- *                          implementation could not read it. A caller re-checks
- *                          the pointer it passed, and otherwise treats the
- *                          address as not yet assigned rather than reading
- *                          `*pValue` as 0.0.0.0.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The address was not retrieved, and this interface
+ *                          does not enumerate the conditions that produce this
+ *                          code. A caller re-checks the pointer it passed, and
+ *                          otherwise treats the address as not yet assigned
+ *                          rather than reading `*pValue` as 0.0.0.0.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @see dhcpv4c_get_ert_mask
@@ -473,14 +534,19 @@ INT dhcpv4c_get_ert_ip_addr(UINT *pValue);
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The subnet mask was retrieved and written to
  *                          `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, the E-Router client holds no
- *                          lease and therefore no mask, or the vendor
- *                          implementation could not read it. A caller re-checks
- *                          the pointer it passed, and otherwise treats the mask
- *                          as unavailable; it must not fall back to a classful
+ * @retval STATUS_FAILURE - The subnet mask was not retrieved, and this
+ *                          interface does not enumerate the conditions that
+ *                          produce this code. A caller re-checks the pointer it
+ *                          passed, and otherwise treats the mask as
+ *                          unavailable; it must not fall back to a classful
  *                          default.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @see dhcpv4c_get_ert_ip_addr
@@ -506,13 +572,18 @@ INT dhcpv4c_get_ert_mask(UINT *pValue);
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The gateway address was retrieved and written to
  *                          `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, the lease carried no router
- *                          option, or the vendor implementation could not read
- *                          it. A caller re-checks the pointer it passed, and
- *                          otherwise treats the gateway as unknown rather than
- *                          assuming one exists on the subnet.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The gateway address was not retrieved, and this
+ *                          interface does not enumerate the conditions that
+ *                          produce this code. A caller re-checks the pointer it
+ *                          passed, and otherwise treats the gateway as unknown
+ *                          rather than assuming one exists on the subnet.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @see dhcpv4c_get_ert_ip_addr
@@ -529,9 +600,10 @@ INT dhcpv4c_get_ert_gw(UINT *pValue);
  *                     accessor sets `pList->number` to the count of servers it
  *                     wrote and fills that many entries of `pList->addrs`, never
  *                     more than `DHCPV4_MAX_IPV4_ADDRS`; the caller must read no
- *                     further than `pList->number` entries. The accessor does
- *                     not retain the pointer once it has returned, so the
- *                     structure may be a local variable.
+ *                     further than `pList->number` entries. Retention beyond
+ *                     the call is not specified by this interface, so a
+ *                     caller keeps the structure allocated and unmoved after
+ *                     it returns.
  * @pre `pList` addresses writable storage for one `dhcpv4c_ip_list_t`; this
  *      interface has no initialization call to make first. The caller need not
  *      pre-initialize the structure.
@@ -543,13 +615,18 @@ INT dhcpv4c_get_ert_gw(UINT *pValue);
  * @retval STATUS_SUCCESS - The DNS server list was retrieved and written to
  *                          `*pList`. A count of 0 is a valid success: the lease
  *                          offered no DNS server.
- * @retval STATUS_FAILURE - `pList` was rejected, the E-Router client holds no
- *                          lease, or the vendor implementation could not read
- *                          the list. A caller re-checks the pointer it passed,
- *                          and otherwise re-reads later rather than treating the
- *                          list as empty.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The DNS server list was not retrieved, and this
+ *                          interface does not enumerate the conditions that
+ *                          produce this code. A caller re-checks the pointer it
+ *                          passed, and otherwise re-reads later rather than
+ *                          treating the list as empty.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @see dhcpv4c_ip_list_t
@@ -575,14 +652,20 @@ INT dhcpv4c_get_ert_dns_svrs(dhcpv4c_ip_list_t *pList);
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The server address was retrieved and written to
  *                          `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, the E-Router client has not
- *                          yet reached a server, or the vendor implementation
- *                          could not read the address. A caller re-checks the
- *                          pointer it passed, and otherwise reads
- *                          dhcpv4c_get_ert_fsm_state() to tell "no server yet"
- *                          from a retrieval fault.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The server address was not retrieved, and this
+ *                          interface does not enumerate the conditions that
+ *                          produce this code. A caller re-checks the pointer it
+ *                          passed, and may read dhcpv4c_get_ert_fsm_state(),
+ *                          which reports the client's own state independently
+ *                          of this call, rather than inferring a reason for the
+ *                          failure.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @see dhcpv4c_get_ert_fsm_state
@@ -607,13 +690,18 @@ INT dhcpv4c_get_ert_dhcp_svr(UINT *pValue);
  *       it is unmodified.
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The lease time was retrieved and written to `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, the ECM client has not been
- *                          offered a lease yet, or the vendor implementation
- *                          could not read it. A caller re-checks the pointer it
- *                          passed, and otherwise re-reads later rather than
- *                          substituting zero for an unknown lease.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The lease time was not retrieved, and this interface
+ *                          does not enumerate the conditions that produce this
+ *                          code. A caller re-checks the pointer it passed, and
+ *                          otherwise re-reads later rather than substituting
+ *                          zero for an unknown lease.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @see dhcpv4c_get_ecm_remain_lease_time
@@ -637,13 +725,18 @@ INT dhcpv4c_get_ecm_lease_time(UINT *pValue);
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The remaining lease time was retrieved and written to
  *                          `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, the ECM client holds no lease,
- *                          or the vendor implementation could not read it. A
- *                          caller re-checks the pointer it passed, and otherwise
- *                          re-reads later; a failure does not mean the lease has
- *                          expired.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The remaining lease time was not retrieved, and this
+ *                          interface does not enumerate the conditions that
+ *                          produce this code. A caller re-checks the pointer it
+ *                          passed, and otherwise re-reads later; a failure does
+ *                          not mean the lease has expired.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @see dhcpv4c_get_ecm_lease_time
@@ -667,12 +760,17 @@ INT dhcpv4c_get_ecm_remain_lease_time(UINT *pValue);
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The remaining renewal time was retrieved and written
  *                          to `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, the ECM client holds no lease
- *                          to renew, or the vendor implementation could not read
- *                          it. A caller re-checks the pointer it passed, and
- *                          otherwise re-reads later.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The remaining renewal time was not retrieved, and
+ *                          this interface does not enumerate the conditions
+ *                          that produce this code. A caller re-checks the
+ *                          pointer it passed, and otherwise re-reads later.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @see dhcpv4c_get_ecm_remain_rebind_time
@@ -697,12 +795,17 @@ INT dhcpv4c_get_ecm_remain_renew_time(UINT *pValue);
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The remaining rebind time was retrieved and written
  *                          to `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, the ECM client holds no lease
- *                          to rebind, or the vendor implementation could not
- *                          read it. A caller re-checks the pointer it passed,
- *                          and otherwise re-reads later.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The remaining rebind time was not retrieved, and
+ *                          this interface does not enumerate the conditions
+ *                          that produce this code. A caller re-checks the
+ *                          pointer it passed, and otherwise re-reads later.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @see dhcpv4c_get_ecm_remain_renew_time
@@ -729,14 +832,19 @@ INT dhcpv4c_get_ecm_remain_rebind_time(UINT *pValue);
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The attempt count was retrieved and written to
  *                          `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, or the vendor implementation
- *                          does not maintain the ECM client's count or could
- *                          not read it. A caller re-checks the pointer it
- *                          passed; a persistent failure here means the
- *                          diagnostic is unavailable on this platform, not that
- *                          no attempt was made.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The attempt count was not retrieved, and this
+ *                          interface does not enumerate the conditions that
+ *                          produce this code. A caller re-checks the pointer it
+ *                          passed; a persistent failure leaves the count
+ *                          unavailable, and a caller must not read it as a
+ *                          count of zero.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @see dhcpv4c_get_ecm_fsm_state
@@ -756,25 +864,32 @@ INT dhcpv4c_get_ecm_config_attempts(INT *pValue);
  *                     as a zero-terminated string, as the Memory Model topic of
  *                     this repository's HAL specification requires of every
  *                     string it produces. The accessor writes no more than the
- *                     buffer holds and does not retain the pointer once it has
- *                     returned, so the buffer may be a local array; the caller
- *                     frees or discards it on its own terms.
+ *                     buffer holds. Retention beyond the call is not
+ *                     specified by this interface, so a caller keeps the
+ *                     buffer allocated and unmoved after it returns.
  * @pre `pName` addresses at least 64 writable bytes; this interface has no
  *      initialization call to make first. A shorter buffer, or one whose size
  *      the accessor cannot know, is the caller's error to avoid: nothing in this
  *      interface can detect it.
- * @post On success `pName` holds a zero-terminated interface name; on failure its
- *       content is not specified by this interface, so a caller must not treat a
- *       failed call's buffer as a valid string.
+ * @post On success `pName` holds the interface name, zero-terminated as that
+ *       obligation requires; on failure its content is not specified by this
+ *       interface, so a caller must not treat a failed call's buffer as a valid
+ *       string.
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The interface name was written to `pName`.
- * @retval STATUS_FAILURE - `pName` was rejected, or the vendor implementation
- *                          could not determine the ECM interface's name. A
- *                          caller re-checks the pointer and the buffer size it
- *                          passed, and otherwise treats the name as unavailable
- *                          rather than reading the buffer.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The interface name was not retrieved, and this
+ *                          interface does not enumerate the conditions that
+ *                          produce this code. A caller re-checks the pointer
+ *                          and the buffer size it passed, and otherwise treats
+ *                          the name as unavailable rather than reading the
+ *                          buffer.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @warning The buffer size is a contract this interface cannot enforce, because
@@ -811,13 +926,18 @@ INT dhcpv4c_get_ecm_ifname(CHAR *pName);
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The client state was retrieved and written to
  *                          `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, or the vendor implementation
- *                          could not read the ECM client's state. A caller
- *                          re-checks the pointer it passed, and otherwise
- *                          re-reads later; it must not read a failure as any
- *                          particular state.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The client state was not retrieved, and this
+ *                          interface does not enumerate the conditions that
+ *                          produce this code. A caller re-checks the pointer it
+ *                          passed, and otherwise re-reads later; it must not
+ *                          read a failure as any particular state.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @note This interface specifies the values above but not the transitions
@@ -844,14 +964,18 @@ INT dhcpv4c_get_ecm_fsm_state(INT *pValue);
  *       unmodified.
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The address was retrieved and written to `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, the ECM client holds no lease
- *                          and therefore no address, or the vendor
- *                          implementation could not read it. A caller re-checks
- *                          the pointer it passed, and otherwise treats the
- *                          address as not yet assigned rather than reading
- *                          `*pValue` as 0.0.0.0.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The address was not retrieved, and this interface
+ *                          does not enumerate the conditions that produce this
+ *                          code. A caller re-checks the pointer it passed, and
+ *                          otherwise treats the address as not yet assigned
+ *                          rather than reading `*pValue` as 0.0.0.0.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @see dhcpv4c_get_ecm_mask
@@ -880,13 +1004,19 @@ INT dhcpv4c_get_ecm_ip_addr(UINT *pValue);
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The subnet mask was retrieved and written to
  *                          `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, the ECM client holds no lease
- *                          and therefore no mask, or the vendor implementation
- *                          could not read it. A caller re-checks the pointer it
- *                          passed, and otherwise treats the mask as unavailable;
- *                          it must not fall back to a classful default.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The subnet mask was not retrieved, and this
+ *                          interface does not enumerate the conditions that
+ *                          produce this code. A caller re-checks the pointer it
+ *                          passed, and otherwise treats the mask as
+ *                          unavailable; it must not fall back to a classful
+ *                          default.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @see dhcpv4c_get_ecm_ip_addr
@@ -914,13 +1044,18 @@ INT dhcpv4c_get_ecm_mask(UINT *pValue);
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The gateway address was retrieved and written to
  *                          `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, the ECM's lease carried no
- *                          router option, or the vendor implementation could not
- *                          read it. A caller re-checks the pointer it passed,
- *                          and otherwise treats the gateway as unknown rather
- *                          than assuming one exists on the subnet.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The gateway address was not retrieved, and this
+ *                          interface does not enumerate the conditions that
+ *                          produce this code. A caller re-checks the pointer it
+ *                          passed, and otherwise treats the gateway as unknown
+ *                          rather than assuming one exists on the subnet.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @see dhcpv4c_get_ecm_ip_addr
@@ -938,9 +1073,10 @@ INT dhcpv4c_get_ecm_gw(UINT *pValue);
  *                     accessor sets `pList->number` to the count of servers it
  *                     wrote and fills that many entries of `pList->addrs`, never
  *                     more than `DHCPV4_MAX_IPV4_ADDRS`; the caller must read no
- *                     further than `pList->number` entries. The accessor does
- *                     not retain the pointer once it has returned, so the
- *                     structure may be a local variable.
+ *                     further than `pList->number` entries. Retention beyond
+ *                     the call is not specified by this interface, so a
+ *                     caller keeps the structure allocated and unmoved after
+ *                     it returns.
  * @pre `pList` addresses writable storage for one `dhcpv4c_ip_list_t`; this
  *      interface has no initialization call to make first. The caller need not
  *      pre-initialize the structure.
@@ -952,13 +1088,18 @@ INT dhcpv4c_get_ecm_gw(UINT *pValue);
  * @retval STATUS_SUCCESS - The DNS server list was retrieved and written to
  *                          `*pList`. A count of 0 is a valid success: the lease
  *                          offered no DNS server.
- * @retval STATUS_FAILURE - `pList` was rejected, the ECM client holds no lease,
- *                          or the vendor implementation could not read the list.
- *                          A caller re-checks the pointer it passed, and
- *                          otherwise re-reads later rather than treating the
- *                          list as empty.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The DNS server list was not retrieved, and this
+ *                          interface does not enumerate the conditions that
+ *                          produce this code. A caller re-checks the pointer it
+ *                          passed, and otherwise re-reads later rather than
+ *                          treating the list as empty.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @see dhcpv4c_ip_list_t
@@ -984,14 +1125,20 @@ INT dhcpv4c_get_ecm_dns_svrs(dhcpv4c_ip_list_t *pList);
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The server address was retrieved and written to
  *                          `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, the ECM client has not yet
- *                          reached a server, or the vendor implementation could
- *                          not read the address. A caller re-checks the pointer
- *                          it passed, and otherwise reads
- *                          dhcpv4c_get_ecm_fsm_state() to tell "no server yet"
- *                          from a retrieval fault.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The server address was not retrieved, and this
+ *                          interface does not enumerate the conditions that
+ *                          produce this code. A caller re-checks the pointer it
+ *                          passed, and may read dhcpv4c_get_ecm_fsm_state(),
+ *                          which reports the client's own state independently
+ *                          of this call, rather than inferring a reason for the
+ *                          failure.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @see dhcpv4c_get_ecm_fsm_state
@@ -1021,13 +1168,18 @@ INT dhcpv4c_get_ecm_dhcp_svr(UINT *pValue);
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The remaining lease time was retrieved and written to
  *                          `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, the eMTA client holds no lease,
- *                          or the vendor implementation could not read it. A
- *                          caller re-checks the pointer it passed, and otherwise
- *                          re-reads later; a failure does not mean the lease has
- *                          expired.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The remaining lease time was not retrieved, and this
+ *                          interface does not enumerate the conditions that
+ *                          produce this code. A caller re-checks the pointer it
+ *                          passed, and otherwise re-reads later; a failure does
+ *                          not mean the lease has expired.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @note Declared only when `NO_MTA_FEATURE_SUPPORT` is not defined. On a build
@@ -1055,12 +1207,17 @@ INT dhcpv4c_get_emta_remain_lease_time(UINT *pValue);
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The remaining renewal time was retrieved and written
  *                          to `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, the eMTA client holds no lease
- *                          to renew, or the vendor implementation could not read
- *                          it. A caller re-checks the pointer it passed, and
- *                          otherwise re-reads later.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The remaining renewal time was not retrieved, and
+ *                          this interface does not enumerate the conditions
+ *                          that produce this code. A caller re-checks the
+ *                          pointer it passed, and otherwise re-reads later.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @note Declared only when `NO_MTA_FEATURE_SUPPORT` is not defined. On a build
@@ -1089,12 +1246,17 @@ INT dhcpv4c_get_emta_remain_renew_time(UINT *pValue);
  * @returns Status of the operation.
  * @retval STATUS_SUCCESS - The remaining rebind time was retrieved and written
  *                          to `*pValue`.
- * @retval STATUS_FAILURE - `pValue` was rejected, the eMTA client holds no lease
- *                          to rebind, or the vendor implementation could not
- *                          read it. A caller re-checks the pointer it passed,
- *                          and otherwise re-reads later.
- * @note Synchronous and must not block the caller's main thread, but expected to
- *       block while the underlying hardware is not yet ready.
+ * @retval STATUS_FAILURE - The remaining rebind time was not retrieved, and
+ *                          this interface does not enumerate the conditions
+ *                          that produce this code. A caller re-checks the
+ *                          pointer it passed, and otherwise re-reads later.
+ * @note Blocking: this interface does not establish whether this accessor may
+ *       block, and it states no bound on how long a call may take - no timeout
+ *       argument, no cancellation call, no asynchronous variant. A caller
+ *       places the call where a delay is survivable and imposes and enforces
+ *       its own bound if it needs one, and a test must not assert a completion
+ *       time this interface does not state. The group contract above states
+ *       this position for the whole family.
  * @note Not required to be thread safe; the calling module must serialise its
  *       invocations.
  * @note Declared only when `NO_MTA_FEATURE_SUPPORT` is not defined. On a build

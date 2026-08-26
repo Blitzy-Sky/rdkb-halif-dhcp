@@ -8,6 +8,8 @@
 | Not recorded | Corrected variable names in `dhcpv4c_api.h`. `CHANGELOG.md` carries this release as a bare compare link with no date, so no date is asserted here. | 1.0.1 |
 | 24 August 2026 | Specification rebuilt against the two headers: the API narrative replaced with the 54 declared accessors, the topic set brought to the canonical form, and a previously documented client lifecycle and DHCPv4 server surface removed because neither is declared. | Unreleased |
 
+**Provenance of this page.** It was renamed from `docs/pages/DHCPv4ChalSpec.md` to `docs/pages/halSpec.md` in the same change that rewrote it against the canonical topic set. Git records a rename only where the two versions still resemble each other, and a full rewrite does not, so `git log --follow -- docs/pages/halSpec.md` begins at that change: the revisions before it are reached with `git log -- docs/pages/DHCPv4ChalSpec.md`.
+
 Four version identities apply to this repository. They are kept apart deliberately, because
 conflating them misstates what a caller is compiling against.
 
@@ -120,8 +122,8 @@ state, address, mask, gateway, DNS or server accessor in either family.
 Nothing else in this interface is optional. The E-Router and ECM accessors of both families, and
 every type and constant either header defines, are declared unconditionally.
 
-*Sources: [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) lines 81-89 for the enumeration and
-its guard, and lines 417-450 for the guarded accessors;
+*Sources: [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) lines 137-145 for the enumeration
+and its guard, and lines 1052-1158 for the guarded accessors;
 [`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 1001-1107 for the guarded accessors
 of the second family.*
 
@@ -203,14 +205,20 @@ of [`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h).*
 ### Memory Model
 
 Every accessor in this interface writes through exactly one caller-supplied output location, and no
-accessor allocates memory on the caller's behalf or retains the caller's pointer once it has
-returned. The obligations that follow from that split are stated separately below.
+accessor allocates memory on the caller's behalf: neither header declares an accessor that returns a
+pointer and neither declares a release call, so nothing crosses this interface that a caller must
+free. **What neither header states is whether an accessor retains the caller's pointer once it has
+returned.** That gap is recorded here rather than closed by inference, and the obligations that
+follow from it are stated separately below.
 
 #### Caller Responsibilities
 
 - The caller owns and allocates the output location for every call, whether it is a scalar, a
-  character buffer or an address-list structure. Because no accessor retains the pointer, that
-  storage may be a local variable, and the caller frees or discards it on its own terms.
+  character buffer or an address-list structure. Because retention is unstated, a caller keeps that
+  storage valid rather than treating the call's return as the moment it becomes free to release or
+  reuse, and does not rely on the accessor having copied out of it. Nothing in either header forbids
+  a local variable, but a caller that uses one is taking on the assumption that the accessor did not
+  keep the address, and this interface does not underwrite that assumption.
 - The buffer passed to `dhcp4c_get_ert_ifname`, `dhcp4c_get_ecm_ifname`,
   `dhcpv4c_get_ert_ifname` or `dhcpv4c_get_ecm_ifname` must be **at least 64 bytes**. The accessor
   receives a bare pointer and no length, so the interface cannot detect a shorter buffer; a buffer
@@ -235,9 +243,14 @@ returned. The obligations that follow from that split are stated separately belo
 - All strings used in this module must be zero-terminated. This ensures that string functions can
   accurately determine the length of the string and prevents buffer overflows when manipulating
   strings.
-- No accessor may allocate storage the caller is expected to release, and none may retain the
-  caller's pointer beyond the call. An accessor writing into a character buffer must write no more
-  than that buffer holds.
+- No accessor allocates storage the caller is expected to release. That much follows from the
+  declarations themselves: none returns a pointer and neither header declares a release call.
+- **Retention is a separate question and this specification does not settle it.** Neither header
+  states whether an accessor may hold the caller's pointer beyond the call, so an implementation that
+  does hold one contradicts nothing in this interface, and this specification does not impose a
+  prohibition the interface never made. The obligation the gap creates falls on the caller and is
+  stated under `Caller Responsibilities`.
+- An accessor writing into a character buffer must write no more than that buffer holds.
 
 **Memory footprint.** No memory footprint limit is specified for this interface. Neither header
 states a ceiling on the DHCPv4 client module's internal data structures, on the memory its
@@ -247,14 +260,19 @@ apply is stated under `Memory and performance requirements`.
 
 *Sources: [`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 145-150 for the argument
 ownership convention and lines 348-377 for the 64-byte buffer minimum;
-[`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) line 188 for the same minimum in the plain-C
-family; the preceding revision of this specification for the module obligations.*
+[`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) lines 389 and 801 for the same minimum in the
+plain-C family; the preceding revision of this specification for the module obligations.*
 
 ### Power Management Requirements
 
 The HAL is not involved in any of the power management operation.
 
-*Source: the preceding revision of this specification.*
+*Source: the preceding revision of this specification for the statement itself, measured against the
+declared surface of `include/dhcp4cApi.h` and `include/dhcpv4c_api.h`. Neither header declares a
+power-management entry point, a power-state type, or a suspend or resume notification: every one of
+the 54 declarations is a getter for a lease duration, a remaining timer, a configuration-attempt
+count, an address, an interface name or a DHCP state value, so there is nothing here for a caller to
+drive and nothing for an implementation to honour.*
 
 ### Asynchronous Notification Model
 
@@ -305,11 +323,22 @@ declaration.*
 - **Focus on Logging for Errors:** For system errors, the HAL should prioritize logging the error
   details for further investigation and resolution.
 
-Every accessor in both families returns `STATUS_SUCCESS`, which is `0`, or `STATUS_FAILURE`, which
-is `-1`, and nothing else. Both macros are defined in
-[`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h), at lines 104 and 108, as `#ifndef`-guarded
-fallbacks; `dhcp4cApi.h` cites them in every one of its return-value descriptions and defines
-neither, so a caller of the plain-C family relies on the same two definitions.
+Every accessor in both families returns the status value `0` or the status value `-1`, and nothing
+else. The two names this document and both headers use for those values, `STATUS_SUCCESS` and
+`STATUS_FAILURE`, are declared in exactly one place:
+[`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 104 and 108, as `#ifndef`-guarded
+fallbacks a platform may override.
+
+The two families do not share that declaration, and a caller of the plain-C family must not assume
+they do. `dhcp4cApi.h` cites both names in every one of its return-value descriptions, defines
+neither, and **contains no `#include` directive at all** \- so a translation unit that includes only
+`dhcp4cApi.h` has no definition of either name and will not compile a reference to one. In that
+header the names are documentation references to `0` and `-1` rather than symbols the header
+supplies. A caller of the `dhcp4c_*` family therefore obtains the two macros itself, by also
+including `dhcpv4c_api.h`, or from its own compatibility layer, or by comparing the return value
+against the literals `0` and `-1` directly. Because the definitions in `dhcpv4c_api.h` are
+guarded fallbacks rather than fixed values, a caller that supplies its own must confirm they are
+still `0` and `-1`; comparing against the literals is always correct.
 
 This interface deliberately defines no granular error enumeration. One failure code therefore
 covers a rejected argument, a value the DHCPv4 client has not yet learned, and an internal
@@ -320,7 +349,9 @@ the interface declined to report.
 
 *Sources: the preceding revision of this specification;
 [`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 103-108 for the two macros and lines
-152-160 for the return convention.*
+152-160 for the return convention; [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) for the
+absence of any `#include` directive and of either macro definition, stated in that header's own
+macro-availability note.*
 
 ### Persistence Model
 
@@ -383,7 +414,11 @@ specifications.
 No numeric ceiling accompanies that expectation; see the memory-footprint statement under
 `Memory Model`.
 
-*Source: the preceding revision of this specification.*
+*Source: the preceding revision of this specification for the proportionality expectation, and
+`include/dhcp4cApi.h` and `include/dhcpv4c_api.h` for the absence of a numeric one. Neither header
+declares a footprint, CPU-load or completion-time constant, and the only timing statement either
+makes is at `include/dhcp4cApi.h` lines 155-160, which requires the accessors to operate
+synchronously and records that no numeric timeout is specified for any call in the header.*
 
 ### Quality Control
 
@@ -396,12 +431,18 @@ Furthermore, both the HAL wrapper and any third-party software interacting with 
 robust memory management practices. This includes meticulous allocation, deallocation, and error
 handling to guarantee a stable and leak-free operation.
 
-**Keeping this document accurate.** Every topic above and below names the file its content was
-derived from. Any change to one of those files obliges a review of the topics that cite it \- a
-renamed or added accessor invalidates `API Surface`, a changed type or constant invalidates
-`Data Structures and Defines`, and a changed state list invalidates `State Diagram`. This
-repository declares no `CODEOWNERS`, so that review is raised through the route
-`CONTRIBUTING.md` prescribes: open an issue against the repository, raise a pull
+**Keeping this document accurate.** Every topic above and below closes with a `Source:` note naming
+the artefacts its own content was derived from, rather than relying on a single statement here. The
+artefacts named across this document are `include/dhcp4cApi.h` and `include/dhcpv4c_api.h` for every
+interface fact; the repository-root `CHANGELOG.md` and this repository's tags for `Version History`;
+`docs/generate_docs.sh` for the generated-site version string; the superproject `README.md` for the
+owning services; `CONTRIBUTING.md` for the review route; `LICENSE.md` and `NOTICE.md` in this
+directory for `Licensing`; and the preceding revision of this specification wherever a statement is
+carried forward that the two headers do not themselves establish. Any change to one of those files
+obliges a review of the topics that cite it \- a renamed or added accessor invalidates `API Surface`,
+a changed type or constant invalidates `Data Structures and Defines`, and a changed state list
+invalidates `State Diagram`. This repository declares no `CODEOWNERS`, so that review is raised
+through the route `CONTRIBUTING.md` prescribes: open an issue against the repository, raise a pull
 request, and the team reviews and merges it.
 
 *Sources: the preceding revision of this specification;
@@ -440,7 +481,7 @@ Changes to the interface will be controlled by versioning, vendors will be expec
 a fixed version of the interface, and based on SLA agreements move to later versions as demand
 requires.
 
-Each API interface will be versioned using [Semantic Versioning 2.0.0](https://semver.org/), the
+Each API interface will be versioned using [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html), the
 vendor code will comply with a specific version of the interface. Note that this interface exposes
 no version macro, so the version a caller is compiling against is established from the release tag
 rather than read from a header; see `Version History`.
@@ -458,7 +499,7 @@ setting the implementation was built with sees a different set of declarations t
 provides, so integrators must apply the flag consistently across the caller and the implementation.
 
 *Sources: the preceding revision of this specification for the versioning policy;
-[`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) lines 83-88 and 417-451, and
+[`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) lines 139-144 and 1052-1158, and
 [`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 1001-1107, for
 `NO_MTA_FEATURE_SUPPORT`.*
 
@@ -521,9 +562,10 @@ constructor, no destructor, no handle and no context type, and no accessor takes
 Every accessor reads the state of a DHCPv4 client the vendor implementation is already running and
 returns immediately.
 
-The only lifetime a caller manages is that of the storage it passes in. Because no accessor retains
-that pointer beyond the call, the storage may be a local variable, and the caller releases it on its
-own terms; see `Memory Model`.
+The only lifetime a caller manages is that of the storage it passes in, and this interface does not
+state how long an accessor may hold the pointer to it. The caller therefore keeps that storage valid
+while it continues to read through this interface and releases it on its own terms afterwards; see
+`Memory Model`, which records the gap and what it obliges.
 
 #### Method Sequencing
 
@@ -560,8 +602,8 @@ there: it does not declare which states may follow which, how long a state persi
 sequence of states is guaranteed. The values are enumerated under `State Diagram`, with the reason
 no diagram accompanies them.
 
-*Sources: [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) lines 57-108 for the enumerations and
-types, and lines 205-211 for the state values;
+*Sources: [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) lines 107-172 for the enumerations
+and types, and lines 437-442 for the state values;
 [`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 138-179 for the group-wide argument,
 return, blocking and thread-safety conventions and for the list of what this interface does not
 declare.*
@@ -577,10 +619,10 @@ sets are therefore listed separately below.
 
 | Definition | Kind | Declared at | What it represents |
 | --- | --- | --- | --- |
-| `DHCPC_CMD` | Enumeration, 13 members | line 57 | The value space this interface covers: one member per kind of DHCPv4 client information it reports. |
-| `DHCPC_MODULE` | Enumeration, 2 or 3 members | line 81 | The modules this interface reports on. `DHCPC_EMTA` is present only when `NO_MTA_FEATURE_SUPPORT` is undefined. |
-| `MAX_IPV4_ADDR_LIST_NUMBER` | Macro constant, `4` | line 91 | Capacity of `ipv4AddrList_t::addrList`, and the most addresses a DNS server list ever reports. |
-| `ipv4AddrList_t` | Structure typedef | lines 104-108 | A list of IPv4 addresses, filled by the two DNS server accessors of this family. |
+| `DHCPC_CMD` | Enumeration, 13 members | lines 107-121 | The value space this interface covers: one member per kind of DHCPv4 client information it reports. |
+| `DHCPC_MODULE` | Enumeration, 2 or 3 members | lines 137-145 | The modules this interface reports on. `DHCPC_EMTA` is present only when `NO_MTA_FEATURE_SUPPORT` is undefined. |
+| `MAX_IPV4_ADDR_LIST_NUMBER` | Macro constant, `4` | line 147 | Capacity of `ipv4AddrList_t::addrList`, and the most addresses a DNS server list ever reports. |
+| `ipv4AddrList_t` | Structure typedef | lines 168-172 | A list of IPv4 addresses, filled by the two DNS server accessors of this family. |
 
 `DHCPC_CMD` members, in declaration order: `DHCPC_CMD_LEASE_TIME`, `DHCPC_CMD_LEASE_TIME_REMAIN`,
 `DHCPC_CMD_RENEW_TIME_REMAIN`, `DHCPC_CMD_REBIND_TIME_REMAIN`, `DHCPC_CMD_CONFIG_ATTEMPTS`,
@@ -633,24 +675,29 @@ Two properties of that table are easy to miss and both affect a caller:
   differently silently changes the signature of every declaration in this family. A caller that
   mixes this header with its own compatibility layer must confirm the two agree.
 - `STATUS_SUCCESS` and `STATUS_FAILURE` are defined **here and nowhere else in this repository**,
-  yet `dhcp4cApi.h` cites them in all of its return-value descriptions. A caller of the plain-C
-  family still depends on these two definitions, whether it includes this header or obtains them
-  from its own environment.
+  yet `dhcp4cApi.h` cites them in all of its return-value descriptions. That header defines
+  neither and contains no `#include` directive, so **including `dhcp4cApi.h` alone does not make
+  either name available**: in that header the names are documentation references to `0` and `-1`.
+  A caller of the plain-C family supplies them itself, by also including this header, by using its
+  own compatibility layer, or by comparing the return value against the literals. See
+  `Internal Error Handling`.
 
 There are **no callback typedefs** to document in either header, and neither `DHCPC_CMD` nor
 `DHCPC_MODULE` appears in any declared signature: both describe the interface's coverage rather
 than parameterising a call.
 
-*Sources: [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) lines 30-38 for the Doxygen groups and
-lines 57-108 for the types; [`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 67-109 for
+*Sources: [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) lines 73-84 for the Doxygen groups
+and lines 107-172 for the types; [`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 67-109 for
 the compatibility definitions and lines 115-135 for the constant and structure.*
 
 ### API Surface
 
 This interface declares **54 accessors** and nothing else: 27 in each family, and within each
 family 12 for the E-Router, 12 for the ECM and 3 for the eMTA. Every one of them takes a single
-caller-owned output location, writes one value through it and returns `STATUS_SUCCESS` or
-`STATUS_FAILURE`; none takes an input parameter, a selector or a handle.
+caller-owned output location, writes one value through it and returns the status value `0` on
+success or `-1` on failure; none takes an input parameter, a selector or a handle. Those two values
+are the ones `dhcpv4c_api.h` declares as `STATUS_SUCCESS` and `STATUS_FAILURE`, and which a caller
+of the `dhcp4c_*` family must obtain for itself \- see `Internal Error Handling`.
 
 `API Surface` is the boundary of this document. The topics above it answer what the interface is
 and how to call it; this topic and the ones below it carry the per-call and per-state detail.
@@ -749,7 +796,7 @@ values, declared in the RDK compatibility macros `INT`, `UINT` and `CHAR`, with 
 | `dhcpv4c_get_emta_remain_renew_time` | Seconds until the eMTA client next attempts renewal. |
 | `dhcpv4c_get_emta_remain_rebind_time` | Seconds until the eMTA client falls back to rebinding. |
 
-*Sources: [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) lines 137-449 and
+*Sources: [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) lines 256-1157 and
 [`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 215-1106, which are the declarations
 themselves.*
 
@@ -832,5 +879,7 @@ For the same reason, this interface has no lifecycle state of its own to diagram
 initialization, teardown or session call, there is no "initialized" or "closed" condition a caller
 could be in. See `Object Lifecycles`.
 
-*Source: [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) lines 205-211, the only place in this
-repository where these values are enumerated.*
+*Source: [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) lines 437-442 and 849-854, restated in
+[`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 392-398 and 798-804. Those four
+notes, one per state accessor, are the only places in this repository where these values are
+enumerated.*
