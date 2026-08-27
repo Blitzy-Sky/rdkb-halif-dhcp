@@ -5,10 +5,10 @@
 | Date | Comment | Version |
 | --- | --- | --- |
 | 2024-07-13 | Initial publication, alongside the migration of the DHCPv4 client headers to GitHub. | 1.0.0 |
-| Not recorded | Corrected variable names in `dhcpv4c_api.h`. `CHANGELOG.md` carries this release as a bare compare link with no date, so no date is asserted here. | 1.0.1 |
+| Not recorded | Corrected variable names in `dhcpv4c_api.h`. The repository's changelog carries this release as a bare compare link with no date, so no date is asserted here. | 1.0.1 |
 | 2026-08-24 | Specification rebuilt against the two headers: the API narrative replaced with the 54 declared accessors, the topic set brought to the canonical form, and a previously documented client lifecycle and DHCPv4 server surface removed because neither is declared. | Unreleased |
 
-**Provenance of this page.** It was renamed from `docs/pages/DHCPv4ChalSpec.md` to `docs/pages/halSpec.md` in the same change that rewrote it against the canonical topic set. Git records a rename only where the two versions still resemble each other, and a full rewrite does not, so `git log --follow -- docs/pages/halSpec.md` begins at that change: the revisions before it are reached with `git log -- docs/pages/DHCPv4ChalSpec.md`. That resemblance is measured, and the threshold is 50% by default, so lowering it to git's floor \- `git log --follow -M1% -- docs/pages/halSpec.md` \- is worth trying first: where it pairs the two paths it shows both stretches of history in one listing, and where the rewrite kept too little of the original for git to pair them at any threshold the second command above remains the only route to the earlier revisions.
+**Provenance of this page.** It was renamed from `docs/pages/DHCPv4ChalSpec.md` to the canonical [halSpec.md](halSpec.md) in the same change that rewrote it against the canonical topic set. Git records a rename only where the two versions still resemble each other, and a full rewrite does not, so `git log --follow -- ./docs/pages/halSpec.md` begins at that change: the revisions before it are reached with `git log -- docs/pages/DHCPv4ChalSpec.md`. That resemblance is measured, and the threshold is 50% by default, so lowering it to git's floor \- `git log --follow -M1% -- ./docs/pages/halSpec.md` \- is worth trying first: where it pairs the two paths it shows both stretches of history in one listing, and where the rewrite kept too little of the original for git to pair them at any threshold the second command above remains the only route to the earlier revisions.
 
 Four version identities apply to this repository. They are kept apart deliberately, because
 conflating them misstates what a caller is compiling against.
@@ -25,7 +25,7 @@ conflating them misstates what a caller is compiling against.
   `git describe --tags` as `PROJECT_VERSION`. It takes the form `1.0.1-<n>-g<abbrev>`, denoting
   `<n>` commits past tag `1.0.1`, and is **not** a version.
 
-*Sources: `CHANGELOG.md`; this repository's tags; [`../generate_docs.sh`](../generate_docs.sh).*
+*Sources: the repository's changelog; this repository's tags; `docs/generate_docs.sh`.*
 
 ## Acronyms
 
@@ -77,9 +77,9 @@ than at a gap to work around.
 Two headers deliver the same surface in different types, and a caller chooses between them on type
 compatibility with its own build rather than on capability:
 
-- [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) declares the `dhcp4c_*` family in plain C
+- `include/dhcp4cApi.h` declares the `dhcp4c_*` family in plain C
   types \- `int`, `unsigned int` and `char` \- and reports address lists in `ipv4AddrList_t`.
-- [`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) declares the `dhcpv4c_*` family in the RDK
+- `include/dhcpv4c_api.h` declares the `dhcpv4c_*` family in the RDK
   compatibility macros `INT`, `UINT` and `CHAR`, and reports address lists in
   `dhcpv4c_ip_list_t`.
 
@@ -92,9 +92,9 @@ DHCPv4C HAL is an abstraction layer, implemented to interact with the underlying
 standard set of APIs to get offered lease time, remaining lease time, remaining time to renew, DHCP
 state and the IPv4 configuration a client was given.
 
-*Sources: [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) and
-[`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) for the declared surface and the types;
-the superproject `README.md` service-dependency table for the owning services.*
+*Sources: `include/dhcp4cApi.h` and
+`include/dhcpv4c_api.h` for the declared surface and the types;
+the superproject README service-dependency table for the owning services.*
 
 ## Optional Components
 
@@ -122,9 +122,9 @@ state, address, mask, gateway, DNS or server accessor in either family.
 Nothing else in this interface is optional. The E-Router and ECM accessors of both families, and
 every type and constant either header defines, are declared unconditionally.
 
-*Sources: [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) lines 137-145 for the enumeration
+*Sources: `include/dhcp4cApi.h` lines 137-145 for the enumeration
 and its guard, and lines 1052-1158 for the guarded accessors;
-[`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 1001-1107 for the guarded accessors
+`include/dhcpv4c_api.h` lines 1001-1107 for the guarded accessors
 of the second family.*
 
 ## Component Runtime Execution Requirements
@@ -170,8 +170,8 @@ reader's convenience rather than a requirement of the interface:
 The `dhcp4c_*` family exposes the same eight values under the same names with the `dhcpv4c_` prefix
 replaced by `dhcp4c_`.
 
-*Sources: [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) and
-[`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) for the absence of any lifecycle entry
+*Sources: `include/dhcp4cApi.h` and
+`include/dhcpv4c_api.h` for the absence of any lifecycle entry
 point; the preceding revision of this specification for the `UDHCPEnable_v2` selection and the
 vendor implementation notes.*
 
@@ -190,7 +190,7 @@ The vendor's obligation does not relieve the caller of its own: a caller that sh
 between threads must serialise those invocations itself.
 
 *Source: the preceding revision of this specification, restated identically in the Doxygen blocks
-of [`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h).*
+of `include/dhcpv4c_api.h`.*
 
 ### Process Model
 
@@ -200,7 +200,7 @@ calling the same API simultaneously. This is crucial to ensure data integrity, p
 conditions, and maintain the overall stability and reliability of the system.
 
 *Source: the preceding revision of this specification, restated identically in the Doxygen blocks
-of [`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h).*
+of `include/dhcpv4c_api.h`.*
 
 ### Memory Model
 
@@ -258,9 +258,9 @@ accessors use, or on allocations a vendor implementation makes, and nothing else
 states one either, so a caller must not infer a figure. The proportionality expectation that does
 apply is stated under `Memory and performance requirements`.
 
-*Sources: [`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 145-150 for the argument
+*Sources: `include/dhcpv4c_api.h` lines 145-150 for the argument
 ownership convention and lines 348-377 for the 64-byte buffer minimum;
-[`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) lines 389 and 801 for the same minimum in the
+`include/dhcp4cApi.h` lines 389 and 801 for the same minimum in the
 plain-C family; the preceding revision of this specification for the module obligations.*
 
 ### Power Management Requirements
@@ -281,7 +281,7 @@ function or an event handle, so a caller that needs to know when a lease changes
 accessors it cares about. This interface offers no push mechanism of any kind.
 
 *Sources: the preceding revision of this specification;
-[`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 176-178 for the absence of any
+`include/dhcpv4c_api.h` lines 176-178 for the absence of any
 callback registration.*
 
 ### Blocking calls
@@ -311,7 +311,7 @@ underlying hardware is not yet ready. Both statements hold together, so a caller
 as potentially slow around start-up and prompt thereafter.
 
 *Sources: the preceding revision of this specification;
-[`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 162-167 for the same pairing on each
+`include/dhcpv4c_api.h` lines 162-167 for the same pairing on each
 declaration.*
 
 ### Internal Error Handling
@@ -326,7 +326,7 @@ declaration.*
 Every accessor in both families returns the status value `0` or the status value `-1`, and nothing
 else. The two names this document and both headers use for those values, `STATUS_SUCCESS` and
 `STATUS_FAILURE`, are declared in exactly one place:
-[`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 104 and 108, as `#ifndef`-guarded
+`include/dhcpv4c_api.h` lines 104 and 108, as `#ifndef`-guarded
 fallbacks a platform may override.
 
 The two families do not share that declaration, and a caller of the plain-C family must not assume
@@ -348,8 +348,8 @@ currently unavailable and re-read later \- never to substitute a default such as
 the interface declined to report.
 
 *Sources: the preceding revision of this specification;
-[`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 103-108 for the two macros and lines
-152-160 for the return convention; [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) for the
+`include/dhcpv4c_api.h` lines 103-108 for the two macros and lines
+152-160 for the return convention; `include/dhcp4cApi.h` for the
 absence of any `#include` directive and of either macro definition, stated in that header's own
 macro-availability note.*
 
@@ -358,7 +358,7 @@ macro-availability note.*
 There is no requirement for HAL to persist any setting information.
 
 *Source: the preceding revision of this specification, restated in
-[`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 47-50.*
+`include/dhcpv4c_api.h` lines 47-50.*
 
 ## Non functional requirements
 
@@ -434,26 +434,27 @@ handling to guarantee a stable and leak-free operation.
 **Keeping this document accurate.** Every topic above and below closes with a `Source:` note naming
 the artefacts its own content was derived from, rather than relying on a single statement here. The
 artefacts named across this document are `include/dhcp4cApi.h` and `include/dhcpv4c_api.h` for every
-interface fact; the repository-root `CHANGELOG.md` and this repository's tags for `Version History`;
-`docs/generate_docs.sh` for the generated-site version string; the superproject `README.md` for the
-owning services; `CONTRIBUTING.md` for the review route; `LICENSE.md` and `NOTICE.md` in this
-directory for `Licensing`; and the preceding revision of this specification wherever a statement is
-carried forward that the two headers do not themselves establish. Any change to one of those files
+interface fact; the repository-root changelog and this repository's tags for
+`Version History`; `docs/generate_docs.sh` for the generated-site version string; the superproject
+README for the owning services; the contribution guide for the review route;
+[LICENSE.md](LICENSE.md) and [NOTICE.md](NOTICE.md) in this directory for `Licensing`; and the
+preceding revision of this specification wherever a statement is carried forward that the two
+headers do not themselves establish. Any change to one of those files
 obliges a review of the topics that cite it \- a renamed or added accessor invalidates `API Surface`,
 a changed type or constant invalidates `Data Structures and Defines`, and a changed state list
 invalidates `State Diagram`. This repository declares no `CODEOWNERS`, so that review is raised
-through the route `CONTRIBUTING.md` prescribes: open an issue against the repository, raise a pull
-request, and the team reviews and merges it.
+through the route the contribution guide prescribes: open an issue against the
+repository, raise a pull request, and the team reviews and merges it.
 
 *Sources: the preceding revision of this specification;
-`CONTRIBUTING.md` lines 5-11 for the review route.*
+the contribution guide, lines 5-11, for the review route.*
 
 ### Licensing
 
 The implementation is expected to released under the Apache License 2.0.
 
 *Source: the preceding revision of this specification; the repository's
-[`LICENSE.md`](LICENSE.md) and [`NOTICE.md`](NOTICE.md).*
+[LICENSE.md](LICENSE.md) and [NOTICE.md](NOTICE.md).*
 
 ### Build Requirements
 
@@ -472,8 +473,8 @@ library, toolchain version or build dependency is specified by this repository, 
 asserted here.
 
 *Sources: the preceding revision of this specification;
-[`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) and
-[`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) as the headers a consumer includes.*
+`include/dhcp4cApi.h` and
+`include/dhcpv4c_api.h` as the headers a consumer includes.*
 
 ### Variability Management
 
@@ -499,8 +500,8 @@ setting the implementation was built with sees a different set of declarations t
 provides, so integrators must apply the flag consistently across the caller and the implementation.
 
 *Sources: the preceding revision of this specification for the versioning policy;
-[`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) lines 139-144 and 1052-1158, and
-[`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 1001-1107, for
+`include/dhcp4cApi.h` lines 139-144 and 1052-1158, and
+`include/dhcpv4c_api.h` lines 1001-1107, for
 `NO_MTA_FEATURE_SUPPORT`.*
 
 ### Platform or Product Customization
@@ -524,14 +525,14 @@ headers rather than configurable per platform or product:
 A platform that needs a value this interface does not report cannot obtain it by configuring the
 HAL; the interface would have to change.
 
-*Sources: [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) and
-[`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) for every fixed element listed.*
+*Sources: `include/dhcp4cApi.h` and
+`include/dhcpv4c_api.h` for every fixed element listed.*
 
 ## Interface API Documentation
 
 All HAL function prototypes and datatype definitions are available in the
-[`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) and
-[`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) files. `dhcp4cApi.h` is also the Doxygen
+`include/dhcp4cApi.h` and
+`include/dhcpv4c_api.h` files. `dhcp4cApi.h` is also the Doxygen
 group anchor for this repository: it declares the `DHCPV4C_HAL` group with its `DHCPV4C_HAL_TYPES`
 and `DHCPV4C_HAL_APIS` subgroups, which `dhcpv4c_api.h` re-opens rather than redefining.
 
@@ -602,9 +603,9 @@ there: it does not declare which states may follow which, how long a state persi
 sequence of states is guaranteed. The values are enumerated under `State Diagram`, with the reason
 no diagram accompanies them.
 
-*Sources: [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) lines 107-172 for the enumerations
+*Sources: `include/dhcp4cApi.h` lines 107-172 for the enumerations
 and types, and lines 437-442 for the state values;
-[`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 138-179 for the group-wide argument,
+`include/dhcpv4c_api.h` lines 138-179 for the group-wide argument,
 return, blocking and thread-safety conventions and for the list of what this interface does not
 declare.*
 
@@ -615,7 +616,7 @@ The two headers define separate, non-interchangeable type sets. `ipv4AddrList_t`
 other, so a caller cannot pass one family's list structure to the other family's accessor. The two
 sets are therefore listed separately below.
 
-**`dhcp4cApi.h` \- the plain-C family.**
+`dhcp4cApi.h` \- the plain-C family.
 
 | Definition | Kind | Declared at | What it represents |
 | --- | --- | --- | --- |
@@ -639,7 +640,7 @@ declared. Both ordinals below `DHCPC_EMTA` are the same in either arm of the gua
 single 32-bit word rather than held as a dotted-quad string. A caller reads `addrList[0]` through
 `addrList[number - 1]` and no further.
 
-**`dhcpv4c_api.h` \- the RDK compatibility family.**
+`dhcpv4c_api.h` \- the RDK compatibility family.
 
 | Definition | Kind | Declared at | What it represents |
 | --- | --- | --- | --- |
@@ -686,8 +687,8 @@ There are **no callback typedefs** to document in either header, and neither `DH
 `DHCPC_MODULE` appears in any declared signature: both describe the interface's coverage rather
 than parameterising a call.
 
-*Sources: [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) lines 73-84 for the Doxygen groups
-and lines 107-172 for the types; [`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 67-109 for
+*Sources: `include/dhcp4cApi.h` lines 73-84 for the Doxygen groups
+and lines 107-172 for the types; `include/dhcpv4c_api.h` lines 67-109 for
 the compatibility definitions and lines 115-135 for the constant and structure.*
 
 ### API Surface
@@ -696,16 +697,16 @@ This interface declares **54 accessors** and nothing else: 27 in each family, an
 family 12 for the E-Router, 12 for the ECM and 3 for the eMTA. Every one of them takes a single
 caller-owned output location, writes one value through it and returns the status value `0` on
 success or `-1` on failure; none takes an input parameter, a selector or a handle. Those two values
-are the ones `dhcpv4c_api.h` declares as `STATUS_SUCCESS` and `STATUS_FAILURE`, and which a caller
+are the ones [dhcpv4c_api.h](../../include/dhcpv4c_api.h) declares as `STATUS_SUCCESS` and `STATUS_FAILURE`, and which a caller
 of the `dhcp4c_*` family must obtain for itself \- see `Internal Error Handling`.
 
 `API Surface` is the boundary of this document. The topics above it answer what the interface is
 and how to call it; this topic and the ones below it carry the per-call and per-state detail.
 Declaration-level documentation for each accessor is the Doxygen block on the declaration itself,
-in [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) and
-[`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h).
+in [include/dhcp4cApi.h](../../include/dhcp4cApi.h) and
+[include/dhcpv4c_api.h](../../include/dhcpv4c_api.h).
 
-**The `dhcp4c_*` family \- [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h).** Plain C types;
+**The `dhcp4c_*` family \- [include/dhcp4cApi.h](../../include/dhcp4cApi.h).** Plain C types;
 address lists in `ipv4AddrList_t`.
 
 *E-Router module \- 12 accessors.*
@@ -750,7 +751,7 @@ address lists in `ipv4AddrList_t`.
 | `dhcp4c_get_emta_remain_renew_time` | Seconds until the eMTA client next attempts to renew its lease. |
 | `dhcp4c_get_emta_remain_rebind_time` | Seconds until the eMTA client falls back from renewing to rebinding. |
 
-**The `dhcpv4c_*` family \- [`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h).** The same 27
+**The `dhcpv4c_*` family \- [include/dhcpv4c_api.h](../../include/dhcpv4c_api.h).** The same 27
 values, declared in the RDK compatibility macros `INT`, `UINT` and `CHAR`, with address lists in
 `dhcpv4c_ip_list_t` and its `DHCPV4_MAX_IPV4_ADDRS` cap.
 
@@ -796,8 +797,8 @@ values, declared in the RDK compatibility macros `INT`, `UINT` and `CHAR`, with 
 | `dhcpv4c_get_emta_remain_renew_time` | Seconds until the eMTA client next attempts renewal. |
 | `dhcpv4c_get_emta_remain_rebind_time` | Seconds until the eMTA client falls back to rebinding. |
 
-*Sources: [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) lines 256-1157 and
-[`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 215-1106, which are the declarations
+*Sources: [include/dhcp4cApi.h](../../include/dhcp4cApi.h) lines 256-1157 and
+[include/dhcpv4c_api.h](../../include/dhcpv4c_api.h) lines 215-1106, which are the declarations
 themselves.*
 
 ### Sequence Diagram
@@ -841,7 +842,7 @@ carries no detail, so the caller's only recourse is to re-check the pointer it p
 re-read later. And the `dhcp4c_*` family behaves identically, differing only in the types of the
 output locations.
 
-*Sources: [`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) for the six accessors named and
+*Sources: `include/dhcpv4c_api.h` for the six accessors named and
 their return convention; the preceding revision of this specification for the `UDHCPEnable_v2`
 branch.*
 
@@ -879,7 +880,7 @@ For the same reason, this interface has no lifecycle state of its own to diagram
 initialization, teardown or session call, there is no "initialized" or "closed" condition a caller
 could be in. See `Object Lifecycles`.
 
-*Source: [`include/dhcp4cApi.h`](../../include/dhcp4cApi.h) lines 437-442 and 849-854, restated in
-[`include/dhcpv4c_api.h`](../../include/dhcpv4c_api.h) lines 392-398 and 798-804. Those four
+*Source: `include/dhcp4cApi.h` lines 437-442 and 849-854, restated in
+`include/dhcpv4c_api.h` lines 392-398 and 798-804. Those four
 notes, one per state accessor, are the only places in this repository where these values are
 enumerated.*
