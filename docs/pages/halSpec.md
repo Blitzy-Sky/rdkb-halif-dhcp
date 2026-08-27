@@ -4,11 +4,11 @@
 
 | Date | Comment | Version |
 | --- | --- | --- |
-| 13 July 2024 | Initial publication, alongside the migration of the DHCPv4 client headers to GitHub. | 1.0.0 |
+| 2024-07-13 | Initial publication, alongside the migration of the DHCPv4 client headers to GitHub. | 1.0.0 |
 | Not recorded | Corrected variable names in `dhcpv4c_api.h`. `CHANGELOG.md` carries this release as a bare compare link with no date, so no date is asserted here. | 1.0.1 |
-| 24 August 2026 | Specification rebuilt against the two headers: the API narrative replaced with the 54 declared accessors, the topic set brought to the canonical form, and a previously documented client lifecycle and DHCPv4 server surface removed because neither is declared. | Unreleased |
+| 2026-08-24 | Specification rebuilt against the two headers: the API narrative replaced with the 54 declared accessors, the topic set brought to the canonical form, and a previously documented client lifecycle and DHCPv4 server surface removed because neither is declared. | Unreleased |
 
-**Provenance of this page.** It was renamed from `docs/pages/DHCPv4ChalSpec.md` to `docs/pages/halSpec.md` in the same change that rewrote it against the canonical topic set. Git records a rename only where the two versions still resemble each other, and a full rewrite does not, so `git log --follow -- docs/pages/halSpec.md` begins at that change: the revisions before it are reached with `git log -- docs/pages/DHCPv4ChalSpec.md`.
+**Provenance of this page.** It was renamed from `docs/pages/DHCPv4ChalSpec.md` to `docs/pages/halSpec.md` in the same change that rewrote it against the canonical topic set. Git records a rename only where the two versions still resemble each other, and a full rewrite does not, so `git log --follow -- docs/pages/halSpec.md` begins at that change: the revisions before it are reached with `git log -- docs/pages/DHCPv4ChalSpec.md`. That resemblance is measured, and the threshold is 50% by default, so lowering it to git's floor \- `git log --follow -M1% -- docs/pages/halSpec.md` \- is worth trying first: where it pairs the two paths it shows both stretches of history in one listing, and where the rewrite kept too little of the original for git to pair them at any threshold the second command above remains the only route to the earlier revisions.
 
 Four version identities apply to this repository. They are kept apart deliberately, because
 conflating them misstates what a caller is compiling against.
