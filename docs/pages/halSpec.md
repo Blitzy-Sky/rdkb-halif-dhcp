@@ -83,10 +83,12 @@ compatibility with its own build rather than on capability:
   compatibility macros `INT`, `UINT` and `CHAR`, and reports address lists in
   `dhcpv4c_ip_list_t`.
 
-Every accessor in both families is synchronous and must not block the caller's main thread, but the
-interface is expected to block while the underlying network hardware is not yet ready. A caller on
-a latency-sensitive path must therefore treat any of these calls as potentially slow around
-start-up and prompt thereafter.
+Every accessor in both families delivers its result synchronously, through the return value and the
+caller's out-parameter, and neither header declares a timeout argument, a cancellation call or an
+asynchronous variant. **Whether an accessor may block is not established by this interface**, and
+that includes the start-up case: no declaration states what an accessor does when the network
+hardware or the DHCPv4 client is not yet ready. A caller on a latency-sensitive path therefore
+cannot rely on either behaviour and must not assume promptness — see `Blocking calls`.
 
 DHCPv4C HAL is an abstraction layer, implemented to interact with the underlying software through a
 standard set of APIs to get offered lease time, remaining lease time, remaining time to renew, DHCP
@@ -122,9 +124,9 @@ state, address, mask, gateway, DNS or server accessor in either family.
 Nothing else in this interface is optional. The E-Router and ECM accessors of both families, and
 every type and constant either header defines, are declared unconditionally.
 
-*Sources: `include/dhcp4cApi.h` lines 137-145 for the enumeration
-and its guard, and lines 1052-1158 for the guarded accessors;
-`include/dhcpv4c_api.h` lines 1001-1107 for the guarded accessors
+*Sources: `include/dhcp4cApi.h` lines 81-89 for the enumeration
+and its guard, and lines 1325-1474 for the guarded accessors;
+`include/dhcpv4c_api.h` lines 1148-1269 for the guarded accessors
 of the second family.*
 
 ## Component Runtime Execution Requirements
@@ -151,8 +153,10 @@ caller's:
 - **Error handling.** Vendors must implement robust error handling for the cases where
   `UDHCPEnable_v2` is not set, is invalid, or is inaccessible.
 
-Third-party vendors will implement appropriately to meet operational requirements. This interface
-is expected to block if the hardware is not ready.
+Third-party vendors will implement appropriately to meet operational requirements. What an accessor
+does when the hardware is not ready is not established by this interface: neither header states it,
+so a caller must not depend on a call either returning promptly or waiting for readiness. See
+`Blocking calls`.
 
 Because there is no lifecycle to establish, the accessors a caller reaches for first are simply the
 ones carrying the values it needs. The E-Router set below is representative, and the order is the
@@ -258,9 +262,9 @@ accessors use, or on allocations a vendor implementation makes, and nothing else
 states one either, so a caller must not infer a figure. The proportionality expectation that does
 apply is stated under `Memory and performance requirements`.
 
-*Sources: `include/dhcpv4c_api.h` lines 145-150 for the argument
-ownership convention and lines 348-377 for the 64-byte buffer minimum;
-`include/dhcp4cApi.h` lines 389 and 801 for the same minimum in the
+*Sources: `include/dhcpv4c_api.h` lines 147-159 for the argument
+ownership convention and lines 393-401 for the 64-byte buffer minimum;
+`include/dhcp4cApi.h` lines 448 and 998 for the same minimum in the
 plain-C family; the preceding revision of this specification for the module obligations.*
 
 ### Power Management Requirements
@@ -281,38 +285,48 @@ function or an event handle, so a caller that needs to know when a lease changes
 accessors it cares about. This interface offers no push mechanism of any kind.
 
 *Sources: the preceding revision of this specification;
-`include/dhcpv4c_api.h` lines 176-178 for the absence of any
+`include/dhcpv4c_api.h` lines 196-198 for the absence of any
 callback registration.*
 
 ### Blocking calls
 
-- **Synchronous and Responsive:** All APIs within this module should operate synchronously and
-  complete within a reasonable timeframe based on the complexity of the operation. Specific timeout
-  values or guidelines may be documented for individual API calls.
+**Whether an accessor may block is not established by this interface.** Both headers state this
+directly, at group level and again on every declaration: no declaration states the duration of a
+call, a condition under which one may wait, or what an accessor does when the network hardware or
+the DHCPv4 client is not yet ready, and nothing else in this repository settles the point. There is
+therefore no blocking behaviour for a caller to rely on, in either direction.
 
-- **Timeout Handling:** To ensure resilience in cases of unresponsiveness, implement appropriate
-  timeouts for API calls where failure due to lack of response is a possibility. Refer to the API
-  documentation for recommended timeout values per function.
+What *is* established is narrower, and a caller can depend on all of it:
 
-- **Non-Blocking Requirement:** Given the single-threaded environment in which these APIs will be
-  called, it is imperative that they do not block or suspend execution of the main thread.
-  Implementations must avoid long-running operations or utilize asynchronous mechanisms where
-  necessary to maintain responsiveness.
+- **The result arrives synchronously.** Every accessor delivers its outcome through the return
+  value at the point of call, with the value itself in the caller's out-parameter. No result is
+  reported later, by callback or by notification — `Asynchronous Notification Model` states that
+  this interface raises none.
+- **A call cannot be bounded, cancelled or made asynchronous by the caller.** Neither header
+  declares a timeout argument, a cancellation call or an asynchronous variant of any accessor, so a
+  call already issued cannot be withdrawn and its duration cannot be capped through this interface.
+- **No numeric timeout exists to quote.** Neither header states a per-call timeout, and this
+  repository states no bound on how long a vendor implementation may take. A vendor's own
+  documentation is the only place a figure could come from; none is asserted here.
 
-**Timeout values.** No numeric timeout is specified for this interface. Neither header states a
-per-call timeout, and this repository states no bound on how long a vendor implementation may take
-to release its internal allocations, so no figure is asserted here. The requirement above is that a
-call complete within a time reasonable for the work it does; a vendor's own documentation is the
-only place a numeric bound could come from.
+The practical consequence for a caller on a latency-sensitive or single-threaded path is that it
+must supply the bound itself — by calling from a context that can tolerate an unknown duration, or
+by imposing a deadline outside this interface — rather than relying on a promptness guarantee this
+interface does not give.
 
-The one qualification to the non-blocking requirement is the start-up case stated under
-`Description` and `Initialization and Startup`: the interface is expected to block while the
-underlying hardware is not yet ready. Both statements hold together, so a caller treats these calls
-as potentially slow around start-up and prompt thereafter.
+An earlier revision of this page asserted the opposite from both ends: a **non-blocking
+requirement** obliging implementations not to block the main thread, and a start-up exception under
+which the interface was "expected to block while the underlying hardware is not yet ready". Neither
+is established by either header — the second is the precise case the headers name as unstated — so
+both are withdrawn rather than reconciled. `Description` and `Initialization and Startup` now carry
+the same position as this topic.
 
-*Sources: the preceding revision of this specification;
-`include/dhcpv4c_api.h` lines 162-167 for the same pairing on each
-declaration.*
+*Sources: `include/dhcp4cApi.h` lines 182-200 and `include/dhcpv4c_api.h` lines 170-187 (the
+group-level statement that blocking is not established, the synchronous delivery of the result, and
+the absence of a timeout, cancellation or asynchronous variant), together with the per-declaration
+`@note Blocking` blocks that repeat it on every accessor — `include/dhcp4cApi.h`:257 and
+`include/dhcpv4c_api.h`:229 are representative. The absence of a numeric timeout is derived from the
+absence of any statement of one anywhere in this repository.*
 
 ### Internal Error Handling
 
@@ -349,7 +363,7 @@ the interface declined to report.
 
 *Sources: the preceding revision of this specification;
 `include/dhcpv4c_api.h` lines 103-108 for the two macros and lines
-152-160 for the return convention; `include/dhcp4cApi.h` for the
+161-171 for the return convention; `include/dhcp4cApi.h` for the
 absence of any `#include` directive and of either macro definition, stated in that header's own
 macro-availability note.*
 
@@ -417,7 +431,7 @@ No numeric ceiling accompanies that expectation; see the memory-footprint statem
 *Source: the preceding revision of this specification for the proportionality expectation, and
 `include/dhcp4cApi.h` and `include/dhcpv4c_api.h` for the absence of a numeric one. Neither header
 declares a footprint, CPU-load or completion-time constant, and the only timing statement either
-makes is at `include/dhcp4cApi.h` lines 155-160, which requires the accessors to operate
+makes is at `include/dhcp4cApi.h` lines 186-200, which requires the accessors to operate
 synchronously and records that no numeric timeout is specified for any call in the header.*
 
 ### Quality Control
@@ -500,8 +514,8 @@ setting the implementation was built with sees a different set of declarations t
 provides, so integrators must apply the flag consistently across the caller and the implementation.
 
 *Sources: the preceding revision of this specification for the versioning policy;
-`include/dhcp4cApi.h` lines 139-144 and 1052-1158, and
-`include/dhcpv4c_api.h` lines 1001-1107, for
+`include/dhcp4cApi.h` lines 83-88 and 1325-1474, and
+`include/dhcpv4c_api.h` lines 1148-1269, for
 `NO_MTA_FEATURE_SUPPORT`.*
 
 ### Platform or Product Customization
@@ -603,9 +617,9 @@ there: it does not declare which states may follow which, how long a state persi
 sequence of states is guaranteed. The values are enumerated under `State Diagram`, with the reason
 no diagram accompanies them.
 
-*Sources: `include/dhcp4cApi.h` lines 107-172 for the enumerations
-and types, and lines 437-442 for the state values;
-`include/dhcpv4c_api.h` lines 138-179 for the group-wide argument,
+*Sources: `include/dhcp4cApi.h` lines 57-108 for the enumerations
+and types, and lines 504-509 for the state values;
+`include/dhcpv4c_api.h` lines 144-198 for the group-wide argument,
 return, blocking and thread-safety conventions and for the list of what this interface does not
 declare.*
 
@@ -620,10 +634,10 @@ sets are therefore listed separately below.
 
 | Definition | Kind | Declared at | What it represents |
 | --- | --- | --- | --- |
-| `DHCPC_CMD` | Enumeration, 13 members | lines 107-121 | The value space this interface covers: one member per kind of DHCPv4 client information it reports. |
-| `DHCPC_MODULE` | Enumeration, 2 or 3 members | lines 137-145 | The modules this interface reports on. `DHCPC_EMTA` is present only when `NO_MTA_FEATURE_SUPPORT` is undefined. |
-| `MAX_IPV4_ADDR_LIST_NUMBER` | Macro constant, `4` | line 147 | Capacity of `ipv4AddrList_t::addrList`, and the most addresses a DNS server list ever reports. |
-| `ipv4AddrList_t` | Structure typedef | lines 168-172 | A list of IPv4 addresses, filled by the two DNS server accessors of this family. |
+| `DHCPC_CMD` | Enumeration, 13 members | lines 57-71 | The value space this interface covers: one member per kind of DHCPv4 client information it reports. |
+| `DHCPC_MODULE` | Enumeration, 2 or 3 members | lines 81-89 | The modules this interface reports on. `DHCPC_EMTA` is present only when `NO_MTA_FEATURE_SUPPORT` is undefined. |
+| `MAX_IPV4_ADDR_LIST_NUMBER` | Macro constant, `4` | line 91 | Capacity of `ipv4AddrList_t::addrList`, and the most addresses a DNS server list ever reports. |
+| `ipv4AddrList_t` | Structure typedef | lines 104-108 | A list of IPv4 addresses, filled by the two DNS server accessors of this family. |
 
 `DHCPC_CMD` members, in declaration order: `DHCPC_CMD_LEASE_TIME`, `DHCPC_CMD_LEASE_TIME_REMAIN`,
 `DHCPC_CMD_RENEW_TIME_REMAIN`, `DHCPC_CMD_REBIND_TIME_REMAIN`, `DHCPC_CMD_CONFIG_ATTEMPTS`,
@@ -645,7 +659,7 @@ single 32-bit word rather than held as a dotted-quad string. A caller reads `add
 | Definition | Kind | Declared at | What it represents |
 | --- | --- | --- | --- |
 | `DHCPV4_MAX_IPV4_ADDRS` | Macro constant, `4` | line 115 | Capacity of `dhcpv4c_ip_list_t::addrs`, matching the other family's cap. |
-| `dhcpv4c_ip_list_t` | Structure typedef | lines 132-135 | A list of IPv4 addresses, filled by the two DNS server accessors of this family. |
+| `dhcpv4c_ip_list_t` | Structure typedef | lines 134-137 | A list of IPv4 addresses, filled by the two DNS server accessors of this family. |
 
 `dhcpv4c_ip_list_t` fields: `INT number`, the count of entries filled, and
 `UINT addrs[DHCPV4_MAX_IPV4_ADDRS]`, the addresses, again packed one to a 32-bit word. This
@@ -687,9 +701,9 @@ There are **no callback typedefs** to document in either header, and neither `DH
 `DHCPC_MODULE` appears in any declared signature: both describe the interface's coverage rather
 than parameterising a call.
 
-*Sources: `include/dhcp4cApi.h` lines 73-84 for the Doxygen groups
-and lines 107-172 for the types; `include/dhcpv4c_api.h` lines 67-109 for
-the compatibility definitions and lines 115-135 for the constant and structure.*
+*Sources: `include/dhcp4cApi.h` lines 29-40 for the Doxygen groups
+and lines 57-108 for the types; `include/dhcpv4c_api.h` lines 67-109 for
+the compatibility definitions and lines 115-137 for the constant and structure.*
 
 ### API Surface
 
@@ -705,6 +719,8 @@ and how to call it; this topic and the ones below it carry the per-call and per-
 Declaration-level documentation for each accessor is the Doxygen block on the declaration itself,
 in [include/dhcp4cApi.h](../../include/dhcp4cApi.h) and
 [include/dhcpv4c_api.h](../../include/dhcpv4c_api.h).
+
+**Where these pointers resolve.** The locators in this topic are relative paths into `include/dhcp4cApi.h` and `include/dhcpv4c_api.h`, the form this documentation set uses throughout, so they resolve on GitHub and in a checkout \- the surface a developer using this repository reads. They do **not** resolve from inside the generated documentation site: the generator copies each link target verbatim into a page one directory below this file, so a site served with `docs/output/html` as its root has nothing above that root to reach and answers `404`, and opened from the filesystem the same target does not exist. Follow a source pointer on GitHub or in a checkout; inside the generated site, reach the same declaration through its `Files` and function-index pages.
 
 **The `dhcp4c_*` family \- [include/dhcp4cApi.h](../../include/dhcp4cApi.h).** Plain C types;
 address lists in `ipv4AddrList_t`.
@@ -797,8 +813,8 @@ values, declared in the RDK compatibility macros `INT`, `UINT` and `CHAR`, with 
 | `dhcpv4c_get_emta_remain_renew_time` | Seconds until the eMTA client next attempts renewal. |
 | `dhcpv4c_get_emta_remain_rebind_time` | Seconds until the eMTA client falls back to rebinding. |
 
-*Sources: [include/dhcp4cApi.h](../../include/dhcp4cApi.h) lines 256-1157 and
-[include/dhcpv4c_api.h](../../include/dhcpv4c_api.h) lines 215-1106, which are the declarations
+*Sources: [include/dhcp4cApi.h](../../include/dhcp4cApi.h) lines 270-1473 and
+[include/dhcpv4c_api.h](../../include/dhcpv4c_api.h) lines 240-1268, which are the declarations
 themselves.*
 
 ### Sequence Diagram
@@ -846,6 +862,8 @@ output locations.
 their return convention; the preceding revision of this specification for the `UDHCPEnable_v2`
 branch.*
 
+Every diagram in this document is a fenced `mermaid` block. Such blocks render as diagrams on GitHub, which the repository's `README.md` symlink makes the primary reading surface for this specification; they do **not** render in the `HTML` the documentation generator produces, where the block appears as its source text instead. That limitation is stated here rather than worked around, because the only available workaround would fix the generated site at the cost of the surface most readers use.
+
 ### State Diagram
 
 The four state accessors named under `State-Dependent Behavior` report the DHCPv4 client's FSM
@@ -880,7 +898,7 @@ For the same reason, this interface has no lifecycle state of its own to diagram
 initialization, teardown or session call, there is no "initialized" or "closed" condition a caller
 could be in. See `Object Lifecycles`.
 
-*Source: `include/dhcp4cApi.h` lines 437-442 and 849-854, restated in
-`include/dhcpv4c_api.h` lines 392-398 and 798-804. Those four
+*Source: `include/dhcp4cApi.h` lines 504-509 and 1054-1059, restated in
+`include/dhcpv4c_api.h` lines 445-450 and 914-919. Those four
 notes, one per state accessor, are the only places in this repository where these values are
 enumerated.*
