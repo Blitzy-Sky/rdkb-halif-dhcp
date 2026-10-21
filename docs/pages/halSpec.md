@@ -30,11 +30,9 @@
 The diagram below describes a high-level software architecture of the DHCPv4C HAL module stack.
 
 ```mermaid
-flowchart TD;
-    RDKBStack[RDK-B Stack] <-->
-    OwningServices["CcspPandMSsp / CcspDHCPMgr"] <-->
-    DHCPv4CHAL["DHCPv4C HAL (libapi_dhcpv4c.so)"] <-->
-    VendorSoftware[Vendor Software]
+flowchart TD
+    Caller["CcspPandMSsp / CcspDHCPMgr"] <--> HAL["DHCPv4C HAL - dhcp4cApi.h, dhcpv4c_api.h"]
+    HAL <--> Vendor["Vendor Software"]
 ```
 
 DHCPv4C HAL is an abstraction layer through which RDK-B middleware reads the state of the DHCPv4
