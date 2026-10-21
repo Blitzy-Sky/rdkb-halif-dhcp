@@ -23,7 +23,6 @@
 - `HAL` \- Hardware Abstraction Layer
 - `IPv4` \- Internet Protocol version 4
 - `RDK-B` \- Reference Design Kit for Broadband Devices
-- `SLA` \- Service Level Agreement
 
 ## Description
 
@@ -80,14 +79,14 @@ a value without opening or closing a session, and any accessor may be the first 
 
 Vendor implementations must meet the following requirements:
 
-- **Implementation selection.** The HAL implementation selects between open-source and proprietary
+- **Implementation selection:** The HAL implementation selects between open-source and proprietary
   DHCPv4c APIs on the value of the `UDHCPEnable_v2` configuration parameter: the open-source APIs
   when it is true, the proprietary ones when it is false. The selection changes which software
   answers a call, not the signature or return convention of that call.
-- **Hardware readiness.** Vendors must ensure the HAL waits for the underlying network hardware to
+- **Hardware readiness:** Vendors must ensure the HAL waits for the underlying network hardware to
   be ready before initiating any DHCP operation, for example by checking for a valid network
   interface and link status.
-- **Error handling.** Vendors must handle the cases where `UDHCPEnable_v2` is not set, is invalid,
+- **Error handling:** Vendors must handle the cases where `UDHCPEnable_v2` is not set, is invalid,
   or is inaccessible.
 
 A representative first read of E-Router state uses the accessors below, in no required order:
@@ -192,9 +191,7 @@ Logging should be consistent across all HAL components. When logging is necessar
 performed into the `dhcp_vendor_hal.log` file, located in either the `/var/tmp/` or the
 `/rdklogs/logs/` directory.
 
-Logs must be categorized by the Linux standard log levels, in descending order of severity:
-`FATAL`, `ERROR`, `WARNING`, `NOTICE`, `INFO`, `DEBUG` and `TRACE`. Each log entry should include a
-timestamp, the log level and a message describing the event or condition.
+Log levels follow the Linux standard logging system, in descending order of severity: `FATAL`, `ERROR`, `WARNING`, `NOTICE`, `INFO`, `DEBUG` and `TRACE`. Each log entry carries a timestamp, the log level and a message describing the event or condition.
 
 Because `STATUS_FAILURE` carries no detail, an implementation should log the reason for every
 failure it returns.
@@ -210,22 +207,13 @@ specifications.
 
 ### Quality Control
 
-To ensure the highest quality and reliability, it is strongly recommended that third-party quality
-assurance tools like `Coverity`, `Black Duck` and `Valgrind` be employed to thoroughly analyze the
-implementation. The goal is to detect and resolve potential issues such as memory leaks, memory
-corruption, or other defects before deployment.
+An implementation should pass analysis with third-party tools such as `Coverity`, `Black Duck` and `Valgrind` without reported issues. Neither the HAL implementation nor the vendor software beneath it may introduce memory leaks or memory corruption.
 
-Furthermore, both the HAL wrapper and any third-party software interacting with it must prioritize
-robust memory management practices. This includes meticulous allocation, deallocation, and error
-handling to guarantee a stable and leak-free operation.
-
-Any change to a file listed under `Source References` obliges a review of this document. That review
-follows the route `CONTRIBUTING.md` prescribes: raise an issue against the repository, open a pull
-request, and the team reviews and merges it.
+Any change to a file listed under `Source References` obliges a review of this document by the repository maintainers, through the issue and pull-request process `CONTRIBUTING.md` describes.
 
 ### Licensing
 
-The implementation is expected to be released under the Apache License 2.0.
+The interface definition is licensed under the Apache License 2.0, with the full text in `LICENSE` and the attribution notice in `NOTICE`. An implementation of this interface is expected to be released under the Apache License 2.0.
 
 ### Build Requirements
 
@@ -242,13 +230,9 @@ implementation.
 
 ### Variability Management
 
-Changes to the interface will be controlled by versioning, vendors will be expected to implement to
-a fixed version of the interface, and based on SLA agreements move to later versions as demand
-requires.
+Changes to the interface are controlled by versioning. Vendors implement a designated version of the interface and move to later versions as their service agreements require. Each interface version follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html), and vendor code complies with a specific version.
 
-Each API interface will be versioned using [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html), and
-the vendor code will comply with a specific version of the interface. The interface version a caller
-compiles against is identified by the repository's release tag.
+The interface version is identified by the repository's release tag.
 
 Two flags vary this interface, and they vary different things:
 
@@ -385,7 +369,7 @@ location, writes one value through it and returns `STATUS_SUCCESS` or `STATUS_FA
 an input parameter. The Doxygen block on each declaration carries its declaration-level
 documentation.
 
-**The `dhcp4c_*` family \- `dhcp4cApi.h`.** Plain C types; address lists in `ipv4AddrList_t`.
+**The `dhcp4c_*` family \- `dhcp4cApi.h`:** Plain C types; address lists in `ipv4AddrList_t`.
 
 *E-Router module \- 12 accessors.*
 
@@ -429,7 +413,7 @@ documentation.
 | `dhcp4c_get_emta_remain_renew_time` | Seconds until the eMTA client next attempts to renew its lease. |
 | `dhcp4c_get_emta_remain_rebind_time` | Seconds until the eMTA client falls back from renewing to rebinding. |
 
-**The `dhcpv4c_*` family \- `dhcpv4c_api.h`.** The same 27 values, declared in the RDK
+**The `dhcpv4c_*` family \- `dhcpv4c_api.h`:** The same 27 values, declared in the RDK
 compatibility macros `INT`, `UINT` and `CHAR`, with address lists in `dhcpv4c_ip_list_t` and its
 `DHCPV4_MAX_IPV4_ADDRS` cap.
 
