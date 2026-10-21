@@ -47,8 +47,7 @@ to run; the number of configuration attempts; the name of the interface the clie
 client's FSM state; and its IPv4 configuration, namely address, subnet mask, default gateway, DNS
 server list and the address of the DHCPv4 server that answered it.
 
-The interface is read-only and client-only. It declares no initialization, teardown, start, stop or
-renew call, no setter, no callback registration, no context handle and no DHCPv4 server surface.
+The interface is read-only and client-only: it declares no setter and no DHCPv4 server surface.
 
 Two headers declare the same surface in different types, and a caller uses the one whose types
 match its own build:
@@ -164,12 +163,6 @@ accessors it needs.
   a deadline enforces it outside this interface.
 
 ### Internal Error Handling
-
-- **Synchronous Error Handling:** All APIs must return errors synchronously as a return value.
-- **Internal Error Reporting:** The HAL is responsible for reporting any internal system errors,
-  such as an out-of-memory condition, through the return value.
-- **Focus on Logging for Errors:** For system errors, the HAL should prioritize logging the error
-  details for further investigation and resolution.
 
 Every accessor in both families returns one of two values:
 
@@ -297,18 +290,17 @@ function name.
 
 #### Object Lifecycles
 
-There is no object. This interface creates and destroys nothing, and no accessor takes or returns a
-handle or context. Every accessor reads the state of a DHCPv4 client the vendor implementation is
-already running; the only storage a caller manages is its own output locations, as `Memory Model`
-describes.
+Every accessor reads the state of a DHCPv4 client the vendor implementation is already running,
+without a session, as `Initialization and Startup` describes; the only storage a caller manages is
+its own output locations, as `Memory Model` describes.
 
 #### Method Sequencing
 
 The accessors are independent and impose no ordering: a caller may invoke any of them, in any
-order. Successive calls are independent reads of a client that keeps running between them, so
-values read in separate calls can disagree \- a state read as `5` (`BOUND`) alongside a remaining lease time
-that has since reached zero, for instance. Because there is no initialization call, a
-`STATUS_FAILURE` never means "call something else first".
+order. A `STATUS_FAILURE` therefore never means "call something else first". Successive calls are
+independent reads of a client that keeps running between them, so values read in separate calls can
+disagree \- a state read as `5` (`BOUND`) alongside a remaining lease time that has since reached
+zero, for instance.
 
 #### State-Dependent Behavior
 
@@ -392,8 +384,8 @@ agree. `Internal Error Handling` states how a caller of the `dhcp4c_*` family ob
 This interface declares 54 accessors: 27 in each family, and within each family 12 for the
 E-Router, 12 for the ECM and 3 for the eMTA. Every accessor takes a single caller-owned output
 location, writes one value through it and returns `STATUS_SUCCESS` or `STATUS_FAILURE`; none takes
-an input parameter, a selector or a handle. The Doxygen block on each declaration carries its
-declaration-level documentation.
+an input parameter. The Doxygen block on each declaration carries its declaration-level
+documentation.
 
 **The `dhcp4c_*` family \- `dhcp4cApi.h`.** Plain C types; address lists in `ipv4AddrList_t`.
 
